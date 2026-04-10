@@ -1,0 +1,22 @@
+# HPAT v6 — Python dependencies
+# Core (required)
+# tkinter is bundled with Python standard library
+
+# Strongly recommended — without these, sim mode only
+aiohttp>=3.9.0          # non-blocking REST API calls
+websockets>=12.0        # async WebSocket client
+
+# Analytics
+numpy>=1.26.0           # vectorised RSI/ATR calculations
+
+# Financial precision (stdlib — no install needed, listed for clarity)
+# decimal  — Python stdlib
+
+# Security: credential management
+python-dotenv>=1.0.0    # load BINANCE_API_KEY from .env file
+
+# AI prediction engine
+google-generativeai>=0.7.0  # Gemini API (gemini-2.0-flash model)
+
+# Optional ML / anomaly detection (future feature)
+# scikit-learn>=1.4.0   # IsolationForest for absorption detection
