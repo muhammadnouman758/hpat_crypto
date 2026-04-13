@@ -309,14 +309,25 @@ class AIPredictionView(BaseView):
         """Called on Tk main thread via _schedule()."""
         from gemini_engine import GEMINI
         C = self._C
-        self._history.appendleft(result)
-        self._update_card(result)
-        self._update_confluence(result)
-        self._update_reasoning(result)
-        self._update_history()
+
+        # Only push to history and fully update card for real API calls
+        if not result.skipped:
+            self._history.appendleft(result)
+            self._update_card(result)
+            self._update_confluence(result)
+            self._update_reasoning(result)
+            self._update_history()
+        else:
+            # Skipped: just blink the status to show engine is alive
+            skip_txt = f'CACHED ({result.skip_reason})'
+            self._set_status(skip_txt, C['text3'])
+            self._app.after(1500, lambda: self._set_status('LIVE ●', C['purple']))
+
         self._update_stats(GEMINI)
-        # Reset countdown
-        self._countdown = 10
+        # Reset countdown using actual cadence
+        from gemini_engine import _CADENCE
+        regime  = result.regime if result.regime in _CADENCE else 'RANGING'
+        self._countdown = _CADENCE.get(regime, 30)
 
     def _on_error(self, msg: str) -> None:
         C = self._C
@@ -421,10 +432,11 @@ class AIPredictionView(BaseView):
 
     def _update_stats(self, gemini) -> None:
         stats = gemini.stats
+        chars, tokens = gemini.user_prompt_size()
         self._stats_var.set(
-            f'Calls: {stats["calls"]}  |  '
-            f'Errors: {stats["errors"]}  |  '
-            f'Latency: {stats["latency_ms"]:.0f}ms  |  '
-            f'Model: {gemini.MODEL_NAME}'
+            f'Calls:{stats["calls"]}  Skips:{stats["skips"]}({stats["skip_rate_pct"]:.0f}%)  '
+            f'Saved≈{stats["tokens_saved"]}tok  '
+            f'Latency:{stats["latency_ms"]:.0f}ms  '
+            f'UserTurn≈{tokens}tok  Model:{stats["model"]}'
         )
         self._latency_var.set(f'{stats["latency_ms"]:.0f}ms')
