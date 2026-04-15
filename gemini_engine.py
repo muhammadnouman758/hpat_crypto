@@ -452,11 +452,13 @@ class GeminiEngine:
     • response_mime_type='application/json' forces valid JSON from model
     • In-flight guard prevents call stacking on slow connections
     • Full stats exposed: calls, skips, skip_rate, latency, tokens_saved
+    • MODEL_NAME is instance-level — UI can switch models without restart
     """
 
-    MODEL_NAME = 'gemini-2.0-flash'
+    MODEL_NAME = 'gemini-2.0-flash'   # default; overridden by UI model selector
 
     def __init__(self) -> None:
+        self.MODEL_NAME         = 'gemini-2.0-flash'   # instance attribute for mutability
         self._client            = None
         self._in_flight: bool   = False
         self._last_result: Optional[PredictionResult] = None
@@ -585,15 +587,15 @@ class GeminiEngine:
         total     = self._call_count + self._skip_count
         skip_rate = self._skip_count / max(total, 1) * 100
         return {
-            'calls':        self._call_count,
-            'skips':        self._skip_count,
+            'calls':         self._call_count,
+            'skips':         self._skip_count,
             'skip_rate_pct': round(skip_rate, 1),
-            'errors':       self._error_count,
-            'latency_ms':   round(self._last_latency, 0),
-            'tokens_saved': self._tokens_saved,
-            'in_flight':    self._in_flight,
-            'enabled':      self.enabled,
-            'model':        self.MODEL_NAME,
+            'errors':        self._error_count,
+            'latency_ms':    round(self._last_latency, 0),
+            'tokens_saved':  self._tokens_saved,
+            'in_flight':     self._in_flight,
+            'enabled':       self.enabled,
+            'model':         self.MODEL_NAME,
         }
 
     def user_prompt_size(self) -> Tuple[int, int]:
