@@ -195,8 +195,8 @@ class AccountView(BaseView):
             load_dotenv()
         except ImportError:
             pass
-        ACC.api_key    = os.environ.get('BINANCE_API_KEY', 'aE5fetrUhYsrO6xJLMvwqS3OdQq8iRUDDG4yltzSqRCWDaUuBXq6zmbNbrAm8ZT4')
-        ACC.api_secret = os.environ.get('BINANCE_API_SECRET', 'jxpFCWe8BZwBlIL2Xp3vtoMf5y2KTrHBWe2sEaQvzqyrtJ3C6oQ2xn2ZO6AUdPQP')
+        ACC.api_key    = os.environ.get('BINANCE_API_KEY', '')
+        ACC.api_secret = os.environ.get('BINANCE_API_SECRET', '')
 
     # ── UI updates ────────────────────────────────────────────────────────────
 

@@ -480,9 +480,17 @@ class AIPredictionView(BaseView):
     def _on_model_changed(self, event=None) -> None:
         """Update badge and description when user picks a different model."""
         self._refresh_model_badge()
-        # If already live, reconfigure with new model immediately
+        # If already live, stop current engine and restart with new model
         if self._enabled:
-            self._do_configure()
+            from gemini_engine import GEMINI
+            GEMINI.stop()
+            GEMINI.MODEL_NAME = self._get_selected_model_id()
+            # Recreate client with new model name (re-uses stored api key via _sdk_client)
+            if GEMINI._sdk_client:
+                GEMINI._sdk_client._model_name = GEMINI.MODEL_NAME
+                GEMINI.enabled = True
+            if hasattr(self._app, '_feed'):
+                self._app._feed.start_gemini()
 
     def _refresh_model_badge(self) -> None:
         C = self._C
@@ -509,6 +517,7 @@ class AIPredictionView(BaseView):
 
     def _disable_engine(self, gemini) -> None:
         C = self._C
+        gemini.stop()          # signal async loop to exit cleanly
         gemini.enabled  = False
         self._enabled   = False
         self._warming_up = False
@@ -537,7 +546,7 @@ class AIPredictionView(BaseView):
         self._set_status('CONNECTING…', C['amber'], pill_bg='#1a1000')
         self._app.update_idletasks()
 
-        ok = GEMINI.configure(key)
+        ok, err_msg = GEMINI.configure(key)
 
         self._toggle_btn.config(state='normal')
         if ok:
@@ -552,22 +561,35 @@ class AIPredictionView(BaseView):
                 text='⟳  Connecting to Gemini… first prediction in ~5 seconds',
                 fg=C['amber'])
             self._countdown = 5
+
+            # ── KEY FIX: schedule Gemini run() on the live feed loop ──────────
+            # This is what was missing — configure() only creates the client,
+            # start() actually launches the async prediction coroutine.
+            if hasattr(self._app, '_feed'):
+                self._app._feed.start_gemini()
         else:
             self._toggle_btn.config(text='▶  ENABLE', bg='#1a0a2e', fg=C['purple'])
-            self._set_status('⚠  AUTH FAILED', C['red'], pill_bg='#2a0005')
+            # Show exact error message so user can diagnose
+            short_err = (err_msg[:60] + '…') if len(err_msg) > 60 else err_msg
+            self._set_status(f'⚠  {short_err}', C['red'], pill_bg='#2a0005')
+            self._driver_var.set(f'⚠  Configuration failed: {err_msg}')
+            self._driver_lbl.config(fg=C['red'])
 
     def _force_refresh(self) -> None:
-        """Reset dedup cache so the next cycle fires regardless of market state."""
+        """Reset dedup cache so the next cycle fires immediately regardless of market state."""
         try:
             from gemini_engine import GEMINI
-            GEMINI._last_feat = {}
-            self._set_status('FORCED ⟳', self._C['cyan'],
-                             pill_bg=self._C['bg3'])
-            self._app.after(1200,
-                lambda: self._set_status('LIVE', self._C['purple'],
-                                          pill_bg='#12002a'))
-        except Exception:
-            pass
+            GEMINI._last_feat = {}   # clear dedup — next cycle will always fire
+            self._set_status('FORCED ⟳', self._C['cyan'], pill_bg=self._C['bg3'])
+            # If the task died for any reason, restart it
+            task = GEMINI._task
+            if task is None or task.done():
+                if hasattr(self._app, '_feed'):
+                    self._app._feed.start_gemini()
+            self._app.after(1500,
+                lambda: self._set_status('LIVE', self._C['purple'], pill_bg='#12002a'))
+        except Exception as e:
+            self._set_status(f'⚠  {str(e)[:30]}', self._C['red'])
 
     def _set_status(self, text: str, color: str, pill_bg: str = None) -> None:
         C  = self._C

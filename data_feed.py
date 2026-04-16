@@ -385,17 +385,15 @@ class FeedController:
     async def _main(self) -> None:
         self._stop_event = asyncio.Event()
 
-        # Import here to avoid circular import at module level
-        from gemini_engine import GEMINI
-
         if self._sim_mode:
             STATE.sim_running = True
-            tasks = [asyncio.create_task(run_sim_async(self._stop_event))]
-            if GEMINI.enabled:
-                tasks.append(asyncio.create_task(GEMINI.run(self._stop_event)))
+            sim_task = asyncio.create_task(run_sim_async(self._stop_event))
             await self._stop_event.wait()
-            for t in tasks:
-                t.cancel()
+            sim_task.cancel()
+            try:
+                await sim_task
+            except asyncio.CancelledError:
+                pass
             return
 
         try:
@@ -404,8 +402,6 @@ class FeedController:
                     asyncio.create_task(_ws_connect_loop(self._stop_event)),
                     asyncio.create_task(_periodic_rest(session)),
                 ]
-                if GEMINI.enabled:
-                    tasks.append(asyncio.create_task(GEMINI.run(self._stop_event)))
                 await self._stop_event.wait()
                 for t in tasks:
                     t.cancel()
@@ -414,24 +410,26 @@ class FeedController:
                 except asyncio.CancelledError:
                     pass
         except Exception:
-            # Graceful fallback to sim
             STATE.sim_running = True
             sim_task = asyncio.create_task(run_sim_async(self._stop_event))
-            if GEMINI.enabled:
-                ai_task = asyncio.create_task(GEMINI.run(self._stop_event))
             await self._stop_event.wait()
+            sim_task.cancel()
+
+    def get_loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        """Return the live asyncio event loop (thread-safe read)."""
+        return self._loop
+
+    def get_stop_event(self) -> Optional[asyncio.Event]:
+        """Return the current feed stop event."""
+        return self._stop_event
 
     def start_gemini(self) -> None:
-        """Re-launch the Gemini prediction loop on the existing event loop."""
+        """Start/restart Gemini on the live feed loop. Called from UI thread."""
         from gemini_engine import GEMINI
-        if self._loop and GEMINI.enabled:
-            asyncio.run_coroutine_threadsafe(
-                self._gemini_task_wrapper(), self._loop)
-
-    async def _gemini_task_wrapper(self) -> None:
-        from gemini_engine import GEMINI
-        if self._stop_event:
-            await GEMINI.run(self._stop_event)
+        loop = self._loop
+        stop = self._stop_event
+        if loop and loop.is_running() and stop and GEMINI.enabled:
+            GEMINI.start(loop, stop)
 
     def run_account_refresh(self) -> None:
         """Schedule an account refresh on the feed loop (thread-safe)."""
