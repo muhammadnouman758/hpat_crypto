@@ -423,13 +423,17 @@ class FeedController:
         """Return the current feed stop event."""
         return self._stop_event
 
-    def start_gemini(self) -> None:
-        """Start/restart Gemini on the live feed loop. Called from UI thread."""
-        from gemini_engine import GEMINI
+    def start_ai(self) -> None:
+        """Start/restart AI engine on the live feed loop. Called from UI thread."""
+        from ai_engine import AI
         loop = self._loop
         stop = self._stop_event
-        if loop and loop.is_running() and stop and GEMINI.enabled:
-            GEMINI.start(loop, stop)
+        if loop and loop.is_running() and stop and AI.enabled:
+            AI.start(loop, stop)
+
+    def start_gemini(self) -> None:
+        """Backward-compat alias for start_ai()."""
+        self.start_ai()
 
     def run_account_refresh(self) -> None:
         """Schedule an account refresh on the feed loop (thread-safe)."""

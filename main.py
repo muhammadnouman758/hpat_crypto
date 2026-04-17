@@ -1043,8 +1043,8 @@ class HPAT_App(tk.Tk):
         STATE.tape_frozen = False
         self.tape_status_var.set('LIVE')
         self._feed.switch_pair(pair)
-        # Re-attach Gemini to new feed loop after short delay
-        self.after(300, self._feed.start_gemini)
+        # Re-attach AI engine to new feed loop after short delay
+        self.after(300, self._feed.start_ai)
 
     def _toggle_freeze(self) -> None:
         STATE.tape_frozen = not STATE.tape_frozen
